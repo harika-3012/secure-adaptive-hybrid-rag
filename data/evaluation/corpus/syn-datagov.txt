@@ -1,0 +1,21 @@
+SYNTHETIC DOCUMENT - written for prototype evaluation. Not a real policy of any organisation.
+
+DATA GOVERNANCE STANDARD (SYNTHETIC)
+
+DG-101 Data Classification
+All information assets are classified as Public, Internal, Confidential or Restricted. The data owner assigns the classification when the asset is created. Restricted data includes customer identity documents and authentication secrets, and may be accessed only by named individuals.
+
+DG-204 Data Retention Schedule
+Transaction records are retained for 8 years after the end of the customer relationship. Customer onboarding documents are retained for 5 years. Application logs are retained for 1 year. When the retention period ends, records must be securely deleted and a destruction certificate filed.
+
+DG-310 Customer Consent and Data Sharing
+Customer data may be shared with third parties only with the explicit, recorded consent of the customer, except where disclosure is required by law. Consent must be specific to the purpose and can be withdrawn at any time. Data shared externally must be minimised to what is strictly necessary.
+
+DG-415 Breach Notification
+A confirmed personal data breach must be reported to the regulator within 72 hours of confirmation. Affected customers must be informed without undue delay when the breach is likely to cause them harm. The Data Protection Officer maintains the breach register.
+
+DG-520 Data Quality
+Data owners must perform a monthly data quality check covering completeness, accuracy and timeliness. Errors found are logged in the data quality tracker and corrected within 15 working days.
+
+DG-610 Data Masking
+Production data must not be used in test environments unless it has been masked or anonymised. Masking must prevent re-identification of customers by combining fields such as name, date of birth and address.

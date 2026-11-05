@@ -1,0 +1,21 @@
+SYNTHETIC DOCUMENT - written for prototype evaluation. Not a real policy of any organisation.
+
+KYC AND ANTI-MONEY-LAUNDERING PROCEDURE (SYNTHETIC)
+
+KYC-02 Customer Due Diligence
+Before an account is opened, the branch must verify the identity of the customer using an officially valid document and confirm the residential address. For legal entities, the beneficial owners holding more than 10 percent of the shares must also be identified.
+
+KYC-08 Periodic Review
+Customer records are refreshed periodically. High-risk customers are reviewed every year, medium-risk customers every 3 years, and low-risk customers every 5 years.
+
+AML-07 Suspicious Transaction Reporting
+A Suspicious Transaction Report must be filed with the Financial Intelligence Unit within 7 days of the compliance officer concluding that a transaction is suspicious. Employees must not tip off the customer that a report has been made.
+
+AML-11 Cash Transactions
+Cash deposits or withdrawals above 1000000 rupees in a month must be reported to the Financial Intelligence Unit. Transactions deliberately split into smaller amounts to avoid this threshold must be treated as suspicious.
+
+AML-15 Sanctions Screening
+Customers and beneficiaries are screened against sanctions lists at onboarding and whenever the lists are updated. Potential matches are escalated to the compliance officer, and the transaction is held until the match is cleared.
+
+AML-20 Staff Training
+All customer-facing employees must complete anti-money laundering training at joining and refresher training every year. Training completion records are kept for 5 years.

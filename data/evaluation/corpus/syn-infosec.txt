@@ -1,0 +1,21 @@
+SYNTHETIC DOCUMENT - written for prototype evaluation. Not a real policy of any organisation.
+
+INFORMATION SECURITY POLICY (SYNTHETIC)
+
+POL-SEC-001 Access Control
+Access to information systems is granted on the principle of least privilege. Managers must approve every access request, and access rights are reviewed every quarter by the system owner. Accounts belonging to employees who leave the organisation must be disabled within 24 hours.
+
+POL-SEC-007 Password Management
+Passwords must contain at least 12 characters and must be changed every 90 days. Reuse of the last 5 passwords is prohibited. Multi-factor authentication is mandatory for all privileged accounts and for any remote access to the corporate network. Accounts are locked after 5 consecutive failed login attempts.
+
+POL-SEC-012 Incident Response
+Every suspected security incident must be reported to the Security Operations Centre within 1 hour of discovery. The incident commander classifies the incident as Low, Medium, High or Critical. Critical incidents require notification to senior management within 2 hours and a post-incident review within 10 working days.
+
+POL-SEC-019 Encryption
+Confidential data must be encrypted at rest using AES-256 and in transit using TLS 1.2 or higher. Encryption keys are stored in a hardware security module and rotated every 12 months. Removable media must use full-disk encryption.
+
+POL-SEC-023 Remote Work
+Employees working remotely must connect through the approved corporate VPN. Personal devices may not store customer records. Screens must lock automatically after 5 minutes of inactivity, and public Wi-Fi may be used only when the VPN is active.
+
+POL-SEC-030 Patch Management
+Critical security patches must be deployed within 7 days of release. High severity patches must be deployed within 30 days. Emergency changes follow the expedited change approval process and are documented retrospectively.

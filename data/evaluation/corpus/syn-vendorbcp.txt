@@ -1,0 +1,21 @@
+SYNTHETIC DOCUMENT - written for prototype evaluation. Not a real policy of any organisation.
+
+THIRD-PARTY RISK AND BUSINESS CONTINUITY STANDARD (SYNTHETIC)
+
+VR-12 Vendor Due Diligence
+Before onboarding a vendor, the procurement team must complete a due diligence questionnaire covering financial stability, security posture, regulatory compliance and subcontractor use. High-risk vendors require an on-site assessment. Due diligence is repeated every 2 years.
+
+VR-18 Cloud Outsourcing
+Outsourcing of material workloads to cloud service providers requires approval from the Technology Risk Committee. Contracts must grant the organisation and the regulator the right to audit, and must require that customer data remains stored within the country.
+
+VR-25 Exit Strategy
+Every material outsourcing contract must include an exit plan that describes how services and data will be transferred back or to a new provider. The exit plan is tested once every 3 years. Vendors must return or certify deletion of all data within 30 days of contract termination.
+
+BCP-05 Recovery Objectives
+Critical banking services must have a Recovery Time Objective (RTO) of 4 hours and a Recovery Point Objective (RPO) of 15 minutes. Business continuity plans are tested twice a year through a full failover drill.
+
+BCP-09 Backup Policy
+Daily incremental backups and weekly full backups are taken for all critical systems. Backups are copied to an offline location in a different city and restore tests are performed every quarter.
+
+VR-31 Vendor Performance
+Vendor performance is reviewed quarterly against the service level agreement. Repeated breaches of the agreed service levels are escalated to the Vendor Risk Committee, which may impose a remediation plan.
