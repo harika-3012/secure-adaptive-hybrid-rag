@@ -14,7 +14,7 @@ Legend: **Verified** = executed with passing result in the authoring environment
 | 8 | Score normalisation + fusion (fixed hybrid maths) | **Verified** (unit tests) |
 | 9 | Adaptive query analysis, classification, α(q) | **Verified** (unit tests on rules/weights); retrieval benefit **not measured** |
 | 10 | Ollama generation, evidence gate, citation filtering | Written |
-| 11 | React frontend (4 pages) | Written (not built or opened) |
+| 11 | React frontend (4 pages) | **Built** (`vite build` passes); not opened in a browser |
 | 12 | Metrics (P@K, R@K, MRR, NDCG@K) | **Verified** (unit tests) |
 | 13 | Evaluation aggregation + charts | **Verified** (unit test; chart rendering checked on a throwaway fixture) |
 | 14 | Evaluation run over the corpus (`experiments/evaluation.py`) | Written; **no results exist yet** |
