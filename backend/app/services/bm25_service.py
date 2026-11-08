@@ -30,10 +30,20 @@ class BM25Service:
         self._chunks = chunks
         self._bm25 = BM25Okapi([tokenize(c.text) for c in chunks]) if chunks else None
 
-    def search(self, query: str, n: int) -> dict[str, float]:
-        """Return {chunk_id: raw BM25 score} for the top-n chunks with a positive score."""
+    def search(self, query: str, n: int, document_ids: set[str] | None = None) -> dict[str, float]:
+        """Return {chunk_id: raw BM25 score} for the top-n chunks with a positive score.
+
+        When document_ids is given, only chunks from those documents are considered.
+        """
         if not self._bm25:
             return {}
         scores = self._bm25.get_scores(tokenize(query))
-        order = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:n]
-        return {self._chunks[i].chunk_id: float(scores[i]) for i in order if scores[i] > 0}
+        out: dict[str, float] = {}
+        for i in sorted(range(len(scores)), key=lambda i: scores[i], reverse=True):
+            if scores[i] <= 0 or len(out) >= n:
+                break
+            chunk = self._chunks[i]
+            if document_ids is not None and chunk.document_id not in document_ids:
+                continue
+            out[chunk.chunk_id] = float(scores[i])
+        return out

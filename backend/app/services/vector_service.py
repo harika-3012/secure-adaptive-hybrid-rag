@@ -36,13 +36,21 @@ class VectorService:
     def count(self) -> int:
         return self.col.count()
 
-    def search(self, query: str, n: int) -> dict[str, float]:
-        """Return {chunk_id: cosine similarity} for the n nearest chunks."""
+    def search(self, query: str, n: int, document_ids: set[str] | None = None) -> dict[str, float]:
+        """Return {chunk_id: cosine similarity} for the n nearest chunks.
+
+        When document_ids is given, only chunks from those documents are considered.
+        """
         total = self.col.count()
         if total == 0:
             return {}
+        where = None
+        if document_ids is not None:
+            if not document_ids:
+                return {}
+            where = {"document_id": {"$in": sorted(document_ids)}}
         q = self.embedder.embed([query])
-        res = self.col.query(query_embeddings=q.tolist(), n_results=min(n, total))
+        res = self.col.query(query_embeddings=q.tolist(), n_results=min(n, total), where=where)
         return {cid: 1.0 - float(dist) for cid, dist in zip(res["ids"][0], res["distances"][0])}
 
     def cosine_for(self, query: str, chunk_ids: list[str]) -> dict[str, float]:

@@ -2,20 +2,19 @@
 from __future__ import annotations
 
 import re
-import time
+from dataclasses import dataclass
 
 import httpx
 
 from app.core.config import get_settings
-from app.schemas.models import ChatResponse, Citation, SearchResponse
+from app.schemas.models import Chunk, RetrievedChunk
 from app.services.adaptive_retrieval_service import STOPWORDS
 from app.services.vector_service import VectorService
 
 INSUFFICIENT = "Insufficient evidence was found in the uploaded documents to answer this question reliably."
+MAX_SUMMARY_CHARS = 6000
 
-SYSTEM_PROMPT = (
-    "You are a document question-answering assistant for an enterprise.\n"
-    "Rules:\n"
+ANSWER_RULES = (
     "1. Answer ONLY using the numbered context passages provided. Do not use outside knowledge.\n"
     "2. Do not invent facts, figures, names or identifiers.\n"
     "3. Cite the passages you used with their labels in square brackets, e.g. [S1] or [S2][S3].\n"
@@ -24,9 +23,38 @@ SYSTEM_PROMPT = (
     "5. Be concise."
 )
 
+ANSWER_PROMPT = "You are a document question-answering assistant for an enterprise.\nRules:\n" + ANSWER_RULES
+
+COMPARE_PROMPT = (
+    "You are a document analyst for an enterprise. The passages come from several documents, identified in "
+    "their source line.\nRules:\n"
+    "1. Answer ONLY using the numbered passages. Do not use outside knowledge.\n"
+    "2. For each document that bears on the question, say what it states and cite it with its label, e.g. [S2].\n"
+    "3. Point out agreements, differences and gaps between the documents.\n"
+    "4. If a document does not address the question, say so instead of guessing.\n"
+    "5. Do not invent facts, figures, names or identifiers. Be concise."
+)
+
+SUMMARY_PROMPT = (
+    "You are a document analyst for an enterprise. Summarise the numbered passages of one document.\n"
+    "Rules:\n"
+    "1. Use ONLY the passages. Do not use outside knowledge.\n"
+    "2. Write 5 to 8 short bullet points covering the purpose, key obligations or facts, dates, owners "
+    "and identifiers that appear.\n"
+    "3. Cite the passage labels you used in square brackets, e.g. [S1].\n"
+    "4. Do not invent facts, figures, names or identifiers."
+)
+
 
 class LLMUnavailable(RuntimeError):
     pass
+
+
+@dataclass(frozen=True)
+class Generated:
+    text: str
+    sufficient: bool
+    cited_labels: set[str]
 
 
 def ollama_status() -> dict:
@@ -36,15 +64,27 @@ def ollama_status() -> dict:
         r.raise_for_status()
         names = [m["name"] for m in r.json().get("models", [])]
         installed = any(n == s.ollama_model or n.startswith(s.ollama_model) for n in names)
-        return {"reachable": True, "model": s.ollama_model, "model_installed": installed, "installed_models": names}
+        return {"reachable": True, "model": s.ollama_model, "model_installed": installed}
     except Exception as exc:  # noqa: BLE001
         return {"reachable": False, "model": s.ollama_model, "model_installed": False, "error": str(exc)}
 
 
-def build_context(search: SearchResponse) -> str:
+def build_context(results: list[RetrievedChunk]) -> str:
     return "\n\n".join(
-        f"[S{r.rank}] (source: {r.chunk.document_name}, page {r.chunk.page})\n{r.chunk.text}" for r in search.results
+        f"[S{r.rank}] (source: {r.chunk.document_name}, page {r.chunk.page})\n{r.chunk.text}" for r in results
     )
+
+
+def summary_passages(chunks: list[Chunk]) -> list[Chunk]:
+    """Leading chunks of a document, up to the context budget, in reading order."""
+    picked: list[Chunk] = []
+    used = 0
+    for chunk in chunks:
+        if picked and used + len(chunk.text) > MAX_SUMMARY_CHARS:
+            break
+        picked.append(chunk)
+        used += len(chunk.text)
+    return picked
 
 
 def lexical_coverage(query: str, text: str) -> float:
@@ -56,82 +96,66 @@ def lexical_coverage(query: str, text: str) -> float:
     return sum(1 for w in set(words) if w in low) / len(set(words))
 
 
+def parse_citations(text: str, valid_labels: set[str]) -> set[str]:
+    return {m for m in re.findall(r"\[(S\d+)\]", text) if m in valid_labels}
+
+
+def _call_ollama(system: str, user: str) -> str:
+    s = get_settings()
+    payload = {
+        "model": s.ollama_model,
+        "stream": False,
+        "options": {"temperature": 0.1},
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+    }
+    try:
+        r = httpx.post(f"{s.ollama_url}/api/chat", json=payload, timeout=s.ollama_timeout_s)
+    except httpx.HTTPError as exc:
+        raise LLMUnavailable(
+            f"The local language model is not reachable ({exc}). Start Ollama and run: ollama pull {s.ollama_model}"
+        ) from exc
+    if r.status_code == 404:
+        raise LLMUnavailable(f"The language model '{s.ollama_model}' is not installed. Run: ollama pull {s.ollama_model}")
+    if r.status_code != 200:
+        raise LLMUnavailable(f"The local language model returned an error (HTTP {r.status_code}).")
+    return r.json()["message"]["content"].strip()
+
+
 class GenerationService:
     def __init__(self, vectors: VectorService) -> None:
         self.vectors = vectors
 
-    def evidence_sufficient(self, query: str, search: SearchResponse) -> bool:
+    def evidence_sufficient(self, query: str, results: list[RetrievedChunk]) -> bool:
         """Pre-LLM gate: require either real semantic similarity or strong lexical coverage.
 
         Uses the *raw* cosine similarity (not min-max normalised scores, which always put the best
         candidate at 1.0 and therefore carry no absolute-relevance information).
         """
         s = get_settings()
-        if not search.results:
+        if not results:
             return False
-        cos = self.vectors.cosine_for(query, [r.chunk.chunk_id for r in search.results])
+        cos = self.vectors.cosine_for(query, [r.chunk.chunk_id for r in results])
         best_cos = max(cos.values(), default=0.0)
-        best_cov = max((lexical_coverage(query, r.chunk.text) for r in search.results), default=0.0)
+        best_cov = max((lexical_coverage(query, r.chunk.text) for r in results), default=0.0)
         return best_cos >= s.min_evidence_score or best_cov >= 0.6
 
-    def _call_ollama(self, question: str, context: str) -> str:
-        s = get_settings()
-        payload = {
-            "model": s.ollama_model,
-            "stream": False,
-            "options": {"temperature": 0.1},
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"},
-            ],
-        }
-        try:
-            r = httpx.post(f"{s.ollama_url}/api/chat", json=payload, timeout=s.ollama_timeout_s)
-        except httpx.HTTPError as exc:
-            raise LLMUnavailable(
-                f"Cannot reach Ollama at {s.ollama_url} ({exc}). Install/start Ollama and run: ollama pull {s.ollama_model}"
-            ) from exc
-        if r.status_code == 404:
-            raise LLMUnavailable(f"Model '{s.ollama_model}' is not installed. Run: ollama pull {s.ollama_model}")
-        if r.status_code != 200:
-            raise LLMUnavailable(f"Ollama returned HTTP {r.status_code}: {r.text[:200]}")
-        return r.json()["message"]["content"].strip()
+    def answer(self, query: str, results: list[RetrievedChunk], compare: bool = False) -> Generated:
+        if not self.evidence_sufficient(query, results):
+            return Generated(text=INSUFFICIENT, sufficient=False, cited_labels=set())
+        system = COMPARE_PROMPT if compare else ANSWER_PROMPT
+        text = _call_ollama(system, f"Context:\n{build_context(results)}\n\nQuestion: {query}\n\nAnswer:")
+        if INSUFFICIENT.lower() in text.lower():
+            return Generated(text=INSUFFICIENT, sufficient=False, cited_labels=set())
+        valid = {f"S{r.rank}" for r in results}
+        return Generated(text=text, sufficient=True, cited_labels=parse_citations(text, valid))
 
-    def answer(self, query: str, search: SearchResponse) -> ChatResponse:
-        s = get_settings()
-        t0 = time.perf_counter()
-        sufficient = self.evidence_sufficient(query, search)
-        if not sufficient:
-            answer, cited = INSUFFICIENT, set()
-        else:
-            answer = self._call_ollama(query, build_context(search))
-            valid = {f"S{r.rank}" for r in search.results}
-            cited = {m for m in re.findall(r"\[(S\d+)\]", answer) if m in valid}  # drop invented labels
-            if INSUFFICIENT.lower() in answer.lower():
-                sufficient = False
-        gen_ms = (time.perf_counter() - t0) * 1000
-
-        citations = [
-            Citation(
-                label=f"S{r.rank}",
-                chunk_id=r.chunk.chunk_id,
-                document_id=r.chunk.document_id,
-                document_name=r.chunk.document_name,
-                page=r.chunk.page,
-                excerpt=r.chunk.text,
-                cited_by_model=f"S{r.rank}" in cited,
-            )
-            for r in search.results
-        ]
-        return ChatResponse(
-            answer=answer,
-            sufficient_evidence=sufficient,
-            method=search.method,
-            retrieved=search.results,
-            citations=citations,
-            adaptive=search.adaptive,
-            model=s.ollama_model,
-            retrieval_latency_ms=search.latency_ms,
-            generation_latency_ms=round(gen_ms, 2),
-            total_latency_ms=round(search.latency_ms + gen_ms, 2),
+    def summarize(self, passages: list[Chunk]) -> Generated:
+        context = "\n\n".join(
+            f"[S{i}] (source: {c.document_name}, page {c.page})\n{c.text}" for i, c in enumerate(passages, start=1)
         )
+        text = _call_ollama(SUMMARY_PROMPT, f"Passages:\n{context}\n\nSummary:")
+        valid = {f"S{i}" for i in range(1, len(passages) + 1)}
+        return Generated(text=text, sufficient=True, cited_labels=parse_citations(text, valid))

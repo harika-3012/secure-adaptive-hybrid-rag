@@ -1,4 +1,4 @@
-"""Retrieval orchestrator: BM25, dense, fixed hybrid and adaptive hybrid."""
+"""Retrieval orchestrator: BM25, dense, fixed hybrid and adaptive hybrid. Internal only; not exposed to end users."""
 from __future__ import annotations
 
 import time
@@ -22,10 +22,13 @@ class RetrievalService:
     def __init__(self, store: DocumentStore, bm25: BM25Service, vectors: VectorService) -> None:
         self.store, self.bm25, self.vectors = store, bm25, vectors
         self._built_version = -1
+        self._by_id: dict = {}
 
     def _ensure_index(self) -> None:
         if self._built_version != self.store.version:
-            self.bm25.build(self.store.all_chunks())
+            chunks = self.store.all_chunks()
+            self.bm25.build(chunks)
+            self._by_id = {c.chunk_id: c for c in chunks}
             self._built_version = self.store.version
 
     def config(self) -> dict:
@@ -64,7 +67,9 @@ class RetrievalService:
         top_k: int = 5,
         fixed_alpha: float | None = None,
         adaptive_config: AdaptiveConfig | None = None,
+        document_ids: set[str] | None = None,
     ) -> SearchResponse:
+        """Rank chunks. document_ids limits candidates to those documents (None = no restriction)."""
         s = get_settings()
         self._ensure_index()
         t0 = time.perf_counter()
@@ -75,9 +80,9 @@ class RetrievalService:
         bm_raw: dict[str, float] = {}
         de_raw: dict[str, float] = {}
         if method in (RetrievalMethod.bm25, RetrievalMethod.fixed_hybrid, RetrievalMethod.adaptive_hybrid):
-            bm_raw = self.bm25.search(query, pool)
+            bm_raw = self.bm25.search(query, pool, document_ids)
         if method in (RetrievalMethod.dense, RetrievalMethod.fixed_hybrid, RetrievalMethod.adaptive_hybrid):
-            de_raw = self.vectors.search(query, pool)
+            de_raw = self.vectors.search(query, pool, document_ids)
 
         nb, nd = min_max(bm_raw), min_max(de_raw)
         if method == RetrievalMethod.bm25:
@@ -100,8 +105,8 @@ class RetrievalService:
 
         ranked = sorted(final.items(), key=lambda kv: kv[1], reverse=True)[:top_k]
         results: list[RetrievedChunk] = []
-        for rank, (cid, score) in enumerate(ranked, start=1):
-            chunk = self.store.chunk_by_id(cid)
+        for cid, score in ranked:
+            chunk = self._by_id.get(cid)
             if chunk is None:
                 continue
             results.append(
@@ -110,7 +115,7 @@ class RetrievalService:
                     score=round(score, 6),
                     bm25_score=round(nb.get(cid, 0.0), 6) if bm_raw or method == RetrievalMethod.bm25 else None,
                     dense_score=round(nd.get(cid, 0.0), 6) if de_raw or method == RetrievalMethod.dense else None,
-                    rank=rank,
+                    rank=len(results) + 1,
                 )
             )
         latency = (time.perf_counter() - t0) * 1000

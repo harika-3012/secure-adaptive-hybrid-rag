@@ -1,4 +1,4 @@
-"""Pydantic request/response schemas."""
+"""Shared domain models for documents, chunks and retrieval results."""
 from __future__ import annotations
 
 from enum import Enum
@@ -32,13 +32,22 @@ class DocumentInfo(BaseModel):
     uploaded_at: str
     processed_at: Optional[str] = None
     synthetic: bool = False
+    owner_id: str = ""
+    owner_name: str = ""
+    visibility: str = "private"
+    shared_with: list[str] = Field(default_factory=list)
+    doc_type: str = "other"
+    title: str = ""
+    keywords: list[str] = Field(default_factory=list)
+    identifiers: list[str] = Field(default_factory=list)
+    dates: list[str] = Field(default_factory=list)
+    key_points: list[str] = Field(default_factory=list)
+    summary: Optional[str] = None
+    summary_at: Optional[str] = None
 
 
-class DocumentStatus(BaseModel):
-    document_id: str
-    status: DocStatus
-    chunks: int = 0
-    error: Optional[str] = None
+class DocumentOut(DocumentInfo):
+    can_manage: bool = False
 
 
 class Chunk(BaseModel):
@@ -76,14 +85,6 @@ class AdaptiveInfo(BaseModel):
     features: dict
 
 
-class SearchRequest(BaseModel):
-    query: str = Field(..., min_length=2, max_length=1000)
-    method: RetrievalMethod = RetrievalMethod.adaptive_hybrid
-    top_k: int = Field(5, ge=1, le=20)
-    fixed_alpha: Optional[float] = Field(None, ge=0, le=1)
-    adaptive_config: Optional[AdaptiveConfig] = None
-
-
 class SearchResponse(BaseModel):
     method: RetrievalMethod
     query: str
@@ -91,33 +92,6 @@ class SearchResponse(BaseModel):
     adaptive: Optional[AdaptiveInfo] = None
     fixed_alpha: Optional[float] = None
     latency_ms: float
-
-
-class Citation(BaseModel):
-    label: str  # "S1"
-    chunk_id: str
-    document_id: str
-    document_name: str
-    page: int
-    excerpt: str
-    cited_by_model: bool
-
-
-class ChatRequest(SearchRequest):
-    pass
-
-
-class ChatResponse(BaseModel):
-    answer: str
-    sufficient_evidence: bool
-    method: RetrievalMethod
-    retrieved: list[RetrievedChunk]
-    citations: list[Citation]
-    adaptive: Optional[AdaptiveInfo] = None
-    model: str
-    retrieval_latency_ms: float
-    generation_latency_ms: float
-    total_latency_ms: float
 
 
 class EvaluationRequest(BaseModel):
