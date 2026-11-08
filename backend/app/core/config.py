@@ -17,6 +17,14 @@ class Settings(BaseSettings):
     data_dir: Path = PROJECT_ROOT / "data"
     chroma_dir: Path | None = None
 
+    mongo_uri: str = "mongodb://127.0.0.1:27017"
+    mongo_db: str = "sahrag"
+    mongo_timeout_ms: int = Field(5000, ge=500, le=60000)
+
+    jwt_secret: str = ""
+    jwt_expire_minutes: int = Field(480, ge=5, le=10080)
+    allow_self_registration: bool = True
+
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     embedding_model_path: str = ""  # local folder, preferred when set (air-gapped)
 
@@ -69,14 +77,6 @@ class Settings(BaseSettings):
     @property
     def chroma_path(self) -> Path:
         return self.chroma_dir or (self.processed_dir / "chroma")
-
-    @property
-    def registry_path(self) -> Path:
-        return self.processed_dir / "documents.json"
-
-    @property
-    def chunks_path(self) -> Path:
-        return self.processed_dir / "chunks.jsonl"
 
     def ensure_dirs(self) -> None:
         for p in (self.documents_dir, self.processed_dir, self.evaluation_dir, self.chroma_path):
