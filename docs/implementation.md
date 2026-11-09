@@ -15,8 +15,7 @@
 | Audit trail and administration | `api/routes/admin.py`, `services/audit_service.py` | Built |
 | Frontend pages | `frontend/src/pages` | Built; production build passes |
 
-## Not yet done
-
-- API-level tests for sign-in, document permissions over HTTP, scoped answers, and the last-administrator guard. These need an in-memory MongoDB or a test database and have not been written.
-- Tests have not been run in this environment. Run `pytest` in the backend after setup.
+- API tests (`backend/tests/test_api.py`) use an in-memory database and cover sign-in, sign-out, document visibility, uploads by role, spaces, conversation scope and privacy, and administrator guards. They have been written but not run in this environment.
+- The last-administrator check can only be reached by an administrator demoting or disabling themselves when they are the sole administrator; the test covers the self-demotion path.
+- Assistant answer quality (retrieval, citations, compare mode) is not covered by automated tests; it needs the local model.
 - The evaluation service is updated to the database-backed store but has not been exercised end to end.
