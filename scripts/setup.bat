@@ -7,7 +7,7 @@ if not exist backend\.venv (
 call backend\.venv\Scripts\activate.bat
 python -m pip install --upgrade pip
 pip install -r backend\requirements.txt
-if not exist backend\.env copy backend\.env.example backend\.env
+python scripts\init_env.py
 cd frontend
 call npm install
 cd ..

@@ -16,14 +16,16 @@ from pathlib import Path
 import pandas as pd
 
 from app.core.config import PROJECT_ROOT, Settings, get_settings
+from app.core.database import create_scratch_database, drop_database, ensure_indexes
 from app.schemas.models import DocStatus, DocumentInfo, RetrievalMethod
 from app.services.bm25_service import BM25Service
-from app.services.document_service import DocumentStore, now_iso
+from app.services.document_service import DocumentStore
 from app.services.embedding_service import EmbeddingService
 from app.services.generation_service import GenerationService
 from app.services.hybrid_retrieval_service import RetrievalService
 from app.services.ingestion_service import IngestionService
 from app.services.vector_service import VectorService
+from app.utils.clock import now_iso
 
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -91,10 +93,12 @@ class EvaluationService:
         questions: list[dict] = dataset["questions"]
 
         work = Path(tempfile.mkdtemp(prefix="eval_", dir=s.evaluation_dir))
+        db = create_scratch_database()
+        ensure_indexes(db)
         try:
             es = Settings(data_dir=work, chroma_dir=work / "chroma")
             es.ensure_dirs()
-            store = DocumentStore(es)
+            store = DocumentStore(db, es)
             vectors = VectorService(self.embedder, es)
             bm25 = BM25Service()
             ingestion = IngestionService(store, vectors, bm25)
@@ -130,7 +134,7 @@ class EvaluationService:
                             "mrr": reciprocal_rank(ranked, relevant) if answerable else None,
                             "ndcg": ndcg_at_k(ranked, relevant, k) if answerable else None,
                             "latency_ms": res.latency_ms,
-                            "sufficient": generation.evidence_sufficient(q["question"], res),
+                            "sufficient": generation.evidence_sufficient(q["question"], res.results),
                             "adaptive_class": res.adaptive.query_class if res.adaptive else None,
                             "alpha_bm25": res.adaptive.bm25_weight if res.adaptive else None,
                         }
@@ -181,6 +185,7 @@ class EvaluationService:
             (out / "results.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
             return result
         finally:
+            drop_database(db)
             shutil.rmtree(work, ignore_errors=True)
 
     @staticmethod

@@ -7,8 +7,10 @@ from app.core.config import get_settings
 from app.schemas.models import Chunk, DocStatus
 from app.services.bm25_service import BM25Service
 from app.services.chunking_service import PageText, chunk_pages
-from app.services.document_service import DocumentStore, now_iso
+from app.services.document_intelligence import analyse_document
+from app.services.document_service import DocumentStore
 from app.services.vector_service import VectorService
+from app.utils.clock import now_iso
 
 
 class ExtractionError(RuntimeError):
@@ -76,11 +78,22 @@ class IngestionService:
                 )
                 for i, rc in enumerate(raw)
             ]
+            intel = analyse_document([p.text for p in pages], info.filename)
             self.vectors.delete_document(document_id)  # idempotent re-processing
             self.vectors.add_chunks(chunks)
             self.store.set_chunks(document_id, chunks)
             self.store.update(
-                document_id, status=DocStatus.processed, pages=len(pages), chunks=len(chunks), processed_at=now_iso()
+                document_id,
+                status=DocStatus.processed,
+                pages=len(pages),
+                chunks=len(chunks),
+                processed_at=now_iso(),
+                doc_type=intel.doc_type,
+                title=intel.title,
+                identifiers=intel.identifiers,
+                dates=intel.dates,
+                keywords=intel.keywords,
+                key_points=intel.key_points,
             )
         except Exception as exc:  # noqa: BLE001
             self.store.update(document_id, status=DocStatus.failed, error=str(exc))
